@@ -1,0 +1,12 @@
+#! /bin/bash
+SOURCE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "${SOURCE_DIR}"
+
+source config.sh
+mkdir -p "$TORRENT_PATH"
+mkdir -p "$STORAGE_PATH"
+
+find "$TORRENT_PATH" -type f -name '*.torrent' | while read FILE;
+  do
+    aria2c --dir="${STORAGE_PATH}/" --torrent-file "${FILE}" --seed-time=1
+done;
