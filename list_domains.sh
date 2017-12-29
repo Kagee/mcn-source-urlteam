@@ -1,4 +1,6 @@
 #! /bin/bash
+SOURCE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "${SOURCE_DIR}"
 source config.sh
 
 # Stats
@@ -11,30 +13,20 @@ source config.sh
 #    671 urlteam_xml - arcive.org metadata
 #   5438 urlteam_zip
 
+CACHEDIR="${STORAGE_PATH}/dotno-cache"
+
 if [ ! -e "$DOMAINS" ] || [ "x$1" = "x--update" ]; then
-    mkdir -p "${STORAGE_PATH}/dotno-cache"
-    find "${STORAGE_PATH}/" -type f -name '*.xz' | \
-    while read CTXT; do
-        MD=$(md5sum "$CTXT" | cut -d' ' -f 1);
-        if [ ! -e "${STORAGE_PATH}/dotno-cache/${MD}" ]; then
-            echo "[INFO] No dotno-cache for $CTXT, creating";
-            xz --decompress --stdout "$CTXT" | \
-                grep -a -F '.no' > "${STORAGE_PATH}/dotno-cache/tmp" && \
-                cp "${STORAGE_PATH}/dotno-cache/tmp" "${STORAGE_PATH}/dotno-cache/${MD}";
-        else
-            echo "[INFO] Using dotno-cache for $CTXT";
-        fi
-    done;
-fi
+    mkdir -p "${CACHEDIR}/"
+    #find "${STORAGE_PATH}/" -type f -name '*.xz' | \
+    #parallel --jobs 7 --bar ${SOURCE_DIR}/cache_xz.sh "${CACHEDIR}" "{}";
 
-exit
-if [ -e "$DOMAINS" ]; then
-    LIST_AGE="$(stat --format '%Y' "$DOMAINS")"
-    NOw="$(date --utc +%s)"
-    AGE=$(echo "(${NOW} - ${LIST_AGE})/86400" | bc)
-    if [ $AGE -gt 7 ]; then
-        echo "WARNING: The cached list is $AGE days old. You might want to generate a new one using 'get_certs.sh' and 'list_domains.sh --update'" 1>&2
-    fi
-    #cat "$DOMAINS";
-fi
+    #find "${STORAGE_PATH}/" -type f -name '*.zip' | \
+    #parallel --jobs 7 --bar ${SOURCE_DIR}/cache_zip.sh "${CACHEDIR}" "{}";
 
+    # We use iconv to remove some invalid UTF-8 chars from stream of lines
+    find ${CACHEDIR}/ -type f ! -name '*.col' -exec cat {} \; | \
+        parallel --jobs ${THREADS} --pipe iconv -c -f utf-8 -t utf-8 | \
+        sed -e 's/\.no\.html/.html/g' | \
+        ${MCN_TOOLS}/urldecode 3 | ${MCN_TOOLS}/default_extract > "${DOMAINS}"
+
+fi
