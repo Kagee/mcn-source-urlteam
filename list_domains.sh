@@ -17,11 +17,11 @@ CACHEDIR="${STORAGE_PATH}/dotno-cache"
 
 if [ ! -e "$DOMAINS" ] || [ "x$1" = "x--update" ]; then
     mkdir -p "${CACHEDIR}/"
-    #find "${STORAGE_PATH}/" -type f -name '*.xz' | \
-    #parallel --jobs 7 --bar ${SOURCE_DIR}/cache_xz.sh "${CACHEDIR}" "{}";
+    find "${STORAGE_PATH}/" -type f -name '*.xz' | \
+        parallel --jobs 7 --bar ${SOURCE_DIR}/cache_xz.sh "${CACHEDIR}" "{}";
 
-    #find "${STORAGE_PATH}/" -type f -name '*.zip' | \
-    #parallel --jobs 7 --bar ${SOURCE_DIR}/cache_zip.sh "${CACHEDIR}" "{}";
+    find "${STORAGE_PATH}/" -type f -name '*.zip' | \
+        parallel --jobs 7 --bar ${SOURCE_DIR}/cache_zip.sh "${CACHEDIR}" "{}";
 
     # We use iconv to remove some invalid UTF-8 chars from stream of lines
     find ${CACHEDIR}/ -type f ! -name '*.col' -exec cat {} \; | \
