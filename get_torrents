@@ -11,7 +11,10 @@ source config.sh
 IDENT_URL='https://archive.org/advancedsearch.php?q=subject%3Aterroroftinytown&fl%5B%5D=identifier&sort%5B%5D=titleSorter+asc&sort%5B%5D=&sort%5B%5D=&rows=5000&page=1&callback=callback&save=yes&output=csv'
 
 IDENT_LIST="identifiers.csv"
-IDENT_AGE="$(echo "($(date --utc +%s) - $(date +%s -r "$IDENT_LIST"))/86400" | bc)"
+IDENT_AGE=1024
+if [ -f "./identifiers.csv" ]; then
+  IDENT_AGE="$(echo "($(date --utc +%s) - $(date +%s -r "$IDENT_LIST"))/86400" | bc)"
+fi
 
 if [ $IDENT_AGE -gt 7 ]; then
     echo "[INFO] $IDENT_LIST is more than 7 days old. Re-downloading." 1>&2
