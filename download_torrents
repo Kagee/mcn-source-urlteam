@@ -1,12 +1,29 @@
 #! /bin/bash
 SOURCE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd "${SOURCE_DIR}"
+cd "$SOURCE_DIR" || exit
 
 source config.sh
 mkdir -p "$TORRENT_PATH"
 mkdir -p "$STORAGE_PATH"
+mkdir -p "$CACHE_PATH"
 
-find "$TORRENT_PATH" -type f -name '*.torrent' | while read FILE;
+find "$TORRENT_PATH" -type f -name '*.torrent' | while read -r FILE;
   do
-    aria2c --dir="${STORAGE_PATH}/" --torrent-file "${FILE}" --seed-time=1
+    BASENAME="$(basename "$FILE").no.xz"
+    echo "$BASENAME"
+    continue
+    if [ ! -f "$STORAGE_PATH/$BASENAME" ]; then
+      echo 1>&2 "[INFO] Processing $FILE"
+      aria2c --dir="${STORAGE_PATH}/" --torrent-file "$FILE" --seed-time=1 --stderr
+      find "${STORAGE_PATH}/" -type f -name '*.zip' | \
+        parallel --jobs 7 "$SOURCE_DIR/cache_zip.sh" "$CACHE_PATH" "{}";
+      find "${STORAGE_PATH}/" -type f -name '*.xz' | \
+        parallel --jobs 7 "$SOURCE_DIR/cache_xz.sh" "$CACHE_PATH" "{}";
+      xzcat "$CACHE_PATH/"*.xz | xz --compress --stdout > "$STORAGE_PATH/$BASENAME.tmp"
+      mv "$STORAGE_PATH/$BASENAME.tmp" "$STORAGE_PATH/$BASENAME"
+      echo 1>&2 "[INFO] Finished $BASENAME"
+    else
+      echo 1>&2 "[INFO] Found $BASENAME, not processing again"
+    fi
+    break
 done;
