@@ -1,4 +1,7 @@
 identifiers.csv
 torrents/
+download/
+no_extract_cache/
 .noborg
 *.list
+*.swp
