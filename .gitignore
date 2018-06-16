@@ -1,5 +1,6 @@
 identifiers.csv
 torrents/
+*.torrent
 download/
 no_extract_cache/
 .noborg
