@@ -2,6 +2,7 @@
 SOURCE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "${SOURCE_DIR}"
 source config.sh
+ME="$(basename "${BASH_SOURCE[0]}")"
 
 CACHEDIR="$1"
 FILENAME="$2"
@@ -9,20 +10,19 @@ FILENAME="$2"
 #exit
 MDZ=$(md5sum "$FILENAME" | cut -d' ' -f 1);
 if [ ! -e "${CACHEDIR}/${MDZ}.col" ]; then
-  echo "[INFO] No dotno-cache for ${FILENAME} (${MDZ}.col)" 1>&2;
+  INFO "No dotno-cache for ${FILENAME} (${MDZ}.col) [$ME]"
   EXTRACT="$(mktemp --directory --tmpdir="${CACHEDIR}")"
   cd "${EXTRACT}"
-  #echo "$FILENAME into $EXTRACT"
+  INFO "$FILENAME into $EXTRACT [$ME]"
   7z x "${FILENAME}" | grep "ing archive";
-  SUMS="";
   find "${EXTRACT}" -name '*.xz' ! -name '*.meta.*' | \
       while read XZ; do
-          echo "Extracting $XZ"
+          INFO "Extracting $XZ [$ME]"
           ${SOURCE_DIR}/cache_xz.sh "${CACHEDIR}" "${XZ}" >> "${CACHEDIR}/${MDZ}.col.tmp"
       done;
   cd ..
   mv "${CACHEDIR}/${MDZ}.col.tmp" "${CACHEDIR}/${MDZ}.col"
   rm -r "${EXTRACT}"
 else
-    echo "[INFO] Found dotno-cache for ${FILENAME}";
+    INFO "Found dotno-cache for ${FILENAME} [$ME]";
 fi
