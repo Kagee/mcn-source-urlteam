@@ -1,29 +1,63 @@
 #! /bin/bash
 SOURCE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SOURCE_DIR" || exit
-
 source config.sh
+
+ME="$(basename "${BASH_SOURCE[0]}")"
+
+set -euo pipefail
+
 mkdir -p "$TORRENT_PATH"
 mkdir -p "$STORAGE_PATH"
 mkdir -p "$CACHE_PATH"
 
-find "$TORRENT_PATH" -type f -name '*.torrent' | while read -r FILE;
+LOG_VERB=1
+LOG_INFO=1
+
+BREAK="no"
+
+find "$TORRENT_PATH" -type f -name '*.torrent' | sort | while read -r FILE;
   do
-    BASENAME="$(basename "$FILE").no.xz"
-    echo "$BASENAME"
-    continue
-    if [ ! -f "$STORAGE_PATH/$BASENAME" ]; then
-      echo 1>&2 "[INFO] Processing $FILE"
-      aria2c --dir="${STORAGE_PATH}/" --torrent-file "$FILE" --seed-time=1 --stderr
-      find "${STORAGE_PATH}/" -type f -name '*.zip' | \
+    OUTPUT="$(basename "$FILE").no.xz"
+    if [ ! -f "$STORAGE_PATH/$OUTPUT" ]; then
+      INFO "Processing $FILE, starting download... [$ME]"
+      TMP_FOLDER="$(mktemp -d "$STORAGE_PATH/XXXXXXXXXXX")"
+      RC=0
+      aria2c --dir="$TMP_FOLDER" --torrent-file "$FILE" \
+      --force-save true --seed-time=1 --stderr || RC=${?:-}
+      if [ $RC -ne 0 ] && [ $RC -ne 13 ]; then
+        # 13 = File found, will not overwrite, ignoring
+        echo >&2 "[ERROR] Don't know how to handle aria2c error code $RC"
+        exit "$RC"
+      else
+        INFO "aria2c exit code was $RC [$ME]"
+      fi
+
+      INFO "Extracting '.no' from *.zip-files to $CACHE_PATH [$ME]"
+      find "$TMP_FOLDER/" -type f -name '*.zip' | \
         parallel --jobs 7 "$SOURCE_DIR/cache_zip.sh" "$CACHE_PATH" "{}";
-      find "${STORAGE_PATH}/" -type f -name '*.xz' | \
+
+      INFO "Extracting '.no' from *.xz-files to $CACHE_PATH [$ME]"
+      find "$TMP_FOLDER/" -type f -name '*.xz' | \
         parallel --jobs 7 "$SOURCE_DIR/cache_xz.sh" "$CACHE_PATH" "{}";
-      xzcat "$CACHE_PATH/"*.xz | xz --compress --stdout > "$STORAGE_PATH/$BASENAME.tmp"
-      mv "$STORAGE_PATH/$BASENAME.tmp" "$STORAGE_PATH/$BASENAME"
-      echo 1>&2 "[INFO] Finished $BASENAME"
+
+      INFO "Creating uniqe cache for $FILE into $STORAGE_PATH/$OUTPUT [$ME]"
+      xzcat "$CACHE_PATH/"*.xz | sort | uniq | \
+        xz --compress --stdout > "$STORAGE_PATH/$OUTPUT.tmp"
+      rm "$CACHE_PATH/"*
+      mv "$STORAGE_PATH/$OUTPUT.tmp" "$STORAGE_PATH/$OUTPUT"
+      rm -r "$TMP_FOLDER"
+      INFO "Finished $OUTPUT [$ME]"
+      #if [ "no" = "$BREAK" ]; then
+      #  BREAK="yes"
+      #else
+      #  INFO "Breaking ($BREAK) [$ME]"
+        break
+      #fi
     else
-      echo 1>&2 "[INFO] Found $BASENAME, not processing again"
+      VERB "Found $OUTPUT, not processing again [$ME]"
     fi
-    break
 done;
+
+# curl -LO https://archive.org/download/ia-pex/ia
+# ./ia download --verbose URLTeamTorrentRelease2013July | grep -v "exists based on length and date"
