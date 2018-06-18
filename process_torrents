@@ -19,17 +19,23 @@ BREAK="no"
 find "$TORRENT_PATH" -type f -name '*.torrent' | sort | while read -r FILE;
   do
     OUTPUT="$(basename "$FILE").no.xz"
-    if [ ! -f "$STORAGE_PATH/$OUTPUT" ]; then
+    if [ ! -f "$STORAGE_PATH/$OUTPUT" ] && [ ! -f "$STORAGE_PATH/$OUTPUT.elog" ]; then
       INFO "Processing $FILE, starting download... [$ME]"
       TMP_FOLDER="$(mktemp -d "$STORAGE_PATH/XXXXXXXXXXX")"
       RC=0
-      aria2c --dir="$TMP_FOLDER" --torrent-file "$FILE" \
-      --force-save true --seed-time=1 --stderr || RC=${?:-}
-      if [ $RC -ne 0 ] && [ $RC -ne 13 ]; then
+      aria2c --dir="$TMP_FOLDER" --torrent-file "$FILE" --log="$STORAGE_PATH/$OUTPUT.elog" \
+      --force-save true --bt-stop-timeout=300 --seed-time=1 --stderr || RC=${?:-}
+      if [ $RC -ne 0 ] && [ $RC -ne 13 ] && [ $RC -ne 8 ]; then
         # 13 = File found, will not overwrite, ignoring
         echo >&2 "[ERROR] Don't know how to handle aria2c error code $RC"
         exit "$RC"
+      elif [ $RC -eq 8 ]; then
+        # Timeout: 300 sec of 0 traffic
+        INFO "Failed to download $FILE [$ME]"
+        rm -r "$TMP_FOLDER"
+        continue
       else
+        rm "$STORAGE_PATH/$OUTPUT.elog"
         INFO "aria2c exit code was $RC [$ME]"
       fi
 
@@ -52,7 +58,7 @@ find "$TORRENT_PATH" -type f -name '*.torrent' | sort | while read -r FILE;
       #  BREAK="yes"
       #else
       #  INFO "Breaking ($BREAK) [$ME]"
-        break
+      #  break
       #fi
     else
       VERB "Found $OUTPUT, not processing again [$ME]"
