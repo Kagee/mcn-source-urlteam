@@ -13,30 +13,21 @@ mkdir -p "$CACHE_PATH"
 
 LOG_VERB=1
 LOG_INFO=1
+LOG_ERROR=1
 
 BREAK="no"
 
-find "$TORRENT_PATH" -type f -name '*.torrent' | sort | while read -r FILE;
+sort identifiers.csv | while read -r IDENTIFIER;
   do
-    OUTPUT="$(basename "$FILE").no.xz"
-    if [ ! -f "$STORAGE_PATH/$OUTPUT" ] && [ ! -f "$STORAGE_PATH/$OUTPUT.elog" ]; then
-      INFO "Processing $FILE, starting download... [$ME]"
-      TMP_FOLDER="$(mktemp -d "$STORAGE_PATH/XXXXXXXXXXX")"
+    OUTPUT="$IDENTIFIER.no.xz"
+    if [ ! -f "$STORAGE_PATH/$OUTPUT" ]; then
+      INFO "Processing $IDENTIFIER, starting download... [$ME]"
+      TMP_FOLDER="$(mktemp -d "$STORAGE_PATH/$IDENTIFIER-XXXXXXXXXXX")"
       RC=0
-      aria2c --dir="$TMP_FOLDER" --torrent-file "$FILE" --log="$STORAGE_PATH/$OUTPUT.elog" \
-      --force-save true --bt-stop-timeout=300 --seed-time=1 --stderr || RC=${?:-}
-      if [ $RC -ne 0 ] && [ $RC -ne 13 ] && [ $RC -ne 8 ]; then
-        # 13 = File found, will not overwrite, ignoring
-        echo >&2 "[ERROR] Don't know how to handle aria2c error code $RC"
+      ./ia download --destdir="$TMP_FOLDER" --verbose "$IDENTIFIER" | sed -e 's/^/[INFO] /' -e "s/$/ [$ME]/" || RC=${?:-}
+      if [ $RC -ne 0 ]; then
+        echo >&2 "[ERROR] Failed to download $IDENTIFIER, exit code $RC"
         exit "$RC"
-      elif [ $RC -eq 8 ]; then
-        # Timeout: 300 sec of 0 traffic
-        INFO "Failed to download $FILE [$ME]"
-        rm -r "$TMP_FOLDER"
-        continue
-      else
-        rm "$STORAGE_PATH/$OUTPUT.elog"
-        INFO "aria2c exit code was $RC [$ME]"
       fi
 
       INFO "Extracting '.no' from *.zip-files to $CACHE_PATH [$ME]"
@@ -47,23 +38,14 @@ find "$TORRENT_PATH" -type f -name '*.torrent' | sort | while read -r FILE;
       find "$TMP_FOLDER/" -type f -name '*.xz' | \
         parallel --jobs 7 "$SOURCE_DIR/cache_xz.sh" "$CACHE_PATH" "{}";
 
-      INFO "Creating uniqe cache for $FILE into $STORAGE_PATH/$OUTPUT [$ME]"
-      xzcat "$CACHE_PATH/"*.xz | sort | uniq | \
+      INFO "Creating uniqe cache for $IDENTIFIER into $STORAGE_PATH/$OUTPUT [$ME]"
+      find "$CACHE_PATH" -name '*.xz' -exec xzcat {} \; | sort | uniq | \
         xz --compress --stdout > "$STORAGE_PATH/$OUTPUT.tmp"
       rm "$CACHE_PATH/"*
       mv "$STORAGE_PATH/$OUTPUT.tmp" "$STORAGE_PATH/$OUTPUT"
       rm -r "$TMP_FOLDER"
       INFO "Finished $OUTPUT [$ME]"
-      #if [ "no" = "$BREAK" ]; then
-      #  BREAK="yes"
-      #else
-      #  INFO "Breaking ($BREAK) [$ME]"
-      #  break
-      #fi
     else
-      VERB "Found $OUTPUT, not processing again [$ME]"
+      VERB "Found $OUTPUT, not processing $IDENTIFIER again [$ME]"
     fi
 done;
-
-# curl -LO https://archive.org/download/ia-pex/ia
-# ./ia download --verbose URLTeamTorrentRelease2013July | grep -v "exists based on length and date"
