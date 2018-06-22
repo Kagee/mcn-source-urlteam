@@ -17,19 +17,39 @@ LOG_ERROR=1
 
 BREAK="no"
 
-sort identifiers.csv | while read -r IDENTIFIER;
+if [ "--2013" = "${1:-}" ]; then
+  IDENTS="URLTeamTorrentRelease2013July"
+else
+  IDENTS="$(sort -R identifiers.csv)"
+fi
+
+if [ ! -f "$PWD/ia" ]; then
+  ERROR "Internet Archive downloader (ia) was not found in \$PWD. Download? (Enter or Ctrl-C)"
+  read -r FOO
+  wget https://archive.org/download/ia-pex/ia
+  chmod +x "$PWD/ia"
+fi
+exit
+echo "$IDENTS" | while read -r IDENTIFIER;
   do
     OUTPUT="$IDENTIFIER.no.xz"
-    if [ ! -f "$STORAGE_PATH/$OUTPUT" ]; then
+    OUTPUT_PATH="$STORAGE_PATH/simple_extract/$OUTPUT"
+    if [ ! -f "$OUTPUT_PATH" ]; then
       INFO "Processing $IDENTIFIER, starting download... [$ME]"
-      TMP_FOLDER="$(mktemp -d "$STORAGE_PATH/$IDENTIFIER-XXXXXXXXXXX")"
-      RC=0
-      ./ia download --destdir="$TMP_FOLDER" --verbose "$IDENTIFIER" | sed -e 's/^/[INFO] /' -e "s/$/ [$ME]/" || RC=${?:-}
-      if [ $RC -ne 0 ]; then
-        echo >&2 "[ERROR] Failed to download $IDENTIFIER, exit code $RC"
-        exit "$RC"
+      INFO "Starting at $(date +%F-%T)"
+      if [ "$IDENTIFIER" != "URLTeamTorrentRelease2013July" ]; then
+        TMP_FOLDER="$(mktemp -d "$STORAGE_PATH/$IDENTIFIER-XXXXXXXXXXX")"
+      else
+        TMP_FOLDER="$STORAGE_PATH/$IDENTIFIER"
       fi
-
+      RC=0
+      if [ "$IDENTIFIER" != "URLTeamTorrentRelease2013July" ]; then
+        ./ia download --destdir="$TMP_FOLDER" --verbose "$IDENTIFIER" | sed -e 's/^/[INFO] /' -e "s/$/ [$ME]/" || RC=${?:-}
+        if [ $RC -ne 0 ]; then
+          echo >&2 "[ERROR] Failed to download $IDENTIFIER, exit code $RC"
+          exit "$RC"
+        fi
+      fi
       INFO "Extracting '.no' from *.zip-files to $CACHE_PATH [$ME]"
       find "$TMP_FOLDER/" -type f -name '*.zip' | \
         parallel --jobs 7 "$SOURCE_DIR/cache_zip.sh" "$CACHE_PATH" "{}";
@@ -38,12 +58,15 @@ sort identifiers.csv | while read -r IDENTIFIER;
       find "$TMP_FOLDER/" -type f -name '*.xz' | \
         parallel --jobs 7 "$SOURCE_DIR/cache_xz.sh" "$CACHE_PATH" "{}";
 
-      INFO "Creating uniqe cache for $IDENTIFIER into $STORAGE_PATH/$OUTPUT [$ME]"
+      INFO "Creating uniqe cache for $IDENTIFIER into $OUTPUT_PATH [$ME]"
       find "$CACHE_PATH" -name '*.xz' -exec xzcat {} \; | sort | uniq | \
-        xz --compress --stdout > "$STORAGE_PATH/$OUTPUT.tmp"
+        xz --compress -T 0 --stdout > "$OUTPUT_PATH.tmp"
       rm "$CACHE_PATH/"*
-      mv "$STORAGE_PATH/$OUTPUT.tmp" "$STORAGE_PATH/$OUTPUT"
-      rm -r "$TMP_FOLDER"
+      mv "$OUTPUT_PATH.tmp" "$OUTPUT_PATH"
+      if [ "$IDENTIFIER" != "URLTeamTorrentRelease2013July" ]; then
+        # URLTeamTorrentRelease2013July is so large we don't want to delete it
+        rm -r "$TMP_FOLDER"
+      fi
       INFO "Finished $OUTPUT [$ME]"
     else
       VERB "Found $OUTPUT, not processing $IDENTIFIER again [$ME]"
