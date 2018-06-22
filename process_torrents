@@ -17,6 +17,26 @@ LOG_ERROR=1
 
 BREAK="no"
 
+IDENT_URL='https://archive.org/advancedsearch.php?q=subject%3Aterroroftinytown&fl%5B%5D=identifier&sort%5B%5D=titleSorter+asc&sort%5B%5D=&sort%5B%5D=&rows=5000&page=1&callback=callback&save=yes&output=csv'
+
+IDENT_LIST="identifiers.csv"
+IDENT_AGE=1024
+if [ -f "./$IDENT_LIST" ]; then
+  IDENT_AGE="$(echo "($(date --utc +%s) - $(date +%s -r "$IDENT_LIST"))/86400" | bc)"
+fi
+
+if [ $IDENT_AGE -gt 7 ]; then
+    echo "[INFO] $IDENT_LIST is more than 7 days old. Re-downloading." 1>&2
+else
+    echo "[INFO] $IDENT_LIST is less than 7 days old, using it. (use --update-identifiers to force update)" 1>&2
+fi
+
+if [ ! -e "$IDENT_LIST" ] || [ "x--update-identifiers" = "${1:-}" ] || [ $IDENT_AGE -gt 7 ]; then
+  curl -s "$IDENT_URL" | grep -v identifier | tr -d '"' > "$IDENT_LIST"
+  exit
+fi
+
+
 if [ "--2013" = "${1:-}" ]; then
   IDENTS="URLTeamTorrentRelease2013July"
 else
