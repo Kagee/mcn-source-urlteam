@@ -49,7 +49,7 @@ if [ ! -f "$PWD/ia" ]; then
   wget https://archive.org/download/ia-pex/ia
   chmod +x "$PWD/ia"
 fi
-exit
+
 echo "$IDENTS" | while read -r IDENTIFIER;
   do
     OUTPUT="$IDENTIFIER.no.xz"
