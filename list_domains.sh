@@ -44,12 +44,13 @@ export LOG_VERB
 
 SIMPLE_EXTRACTS="$STORAGE_PATH/simple_extract"
 REGEXP_EXTRACTS="$STORAGE_PATH/regexp_extract"
-
-COUNT="$(find . -name "*$DOMAINS" 2>/dev/null | wc -l)";
+YM="$(date +%F)"
+COUNT="$(find . -name "$YM-$DOMAINS" 2>/dev/null | wc -l)";
 if [ "$COUNT" -eq "0" ] || [ "x${1:-}" = "x--update-list" ]; then
   INFO "$DOMAINS not found, extracting ..."
 
   TIMESTAMP="$(date +%F-%T | tr ':' '-')"
+  YM="$(date +%F)"
   mkdir -p "$REGEXP_EXTRACTS"
   XZ_FILES="$(mktemp "$PWD/xz-files-$TIMESTAMP-XXXXXXXXXX.tmp")"
   find "$SIMPLE_EXTRACTS/" -type f -name '*.no.xz' > "$XZ_FILES"
@@ -65,10 +66,11 @@ if [ "$COUNT" -eq "0" ] || [ "x${1:-}" = "x--update-list" ]; then
   while read -r EXTRACT; do
     xzcat "$EXTRACT" >> "$EXTRACT_TMP";
   done
-  sort "$EXTRACT_TMP" | uniq > "$EXTRACT_TMP2" && \
-  mv "$EXTRACT_TMP2" "$TIMESTAMP-$DOMAINS"
-  rm "$EXTRACT_TMP"
-  INFO "Extraction complete. Saved to $TIMESTAMP-$DOMAINS"
+  cat old/* "$EXTRACT_TMP" | "$MCN_TOOLS/default_extract" > "$EXTRACT_TMP2"
+  mv output/* old/ || true
+  mv "$EXTRACT_TMP2" "output/$YM-$DOMAINS"
+  rm "$EXTRACT_TMP" || true
+  INFO "Extraction complete. Saved to output/$YM-$DOMAINS"
 else
     INFO "$DOMAINS found. Use '$0 --update-list' create a new extract."
 fi
